@@ -1,0 +1,141 @@
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include "display.h"
+
+// ESTADOS
+#define ESTADO_ESPERA    0
+#define ESTADO_CONTEO    1
+#define ESTADO_CARRERA   2
+#define ESTADO_GANADOR   3
+
+volatile uint8_t estado_juego = ESTADO_ESPERA;
+volatile uint8_t display_valor = 0;
+volatile uint16_t timer_ms = 0;
+
+// Variables control de jugadores y limite de meta
+uint8_t contador_j1 = 0;
+uint8_t contador_j2 = 0;
+const uint8_t META = 5;
+
+void setup_hardware() {
+	display_init();
+	
+	
+	TCCR0A = (1 << WGM01); 
+	OCR0A = 249;
+	TIMSK0 = (1 << OCIE0A);
+	TCCR0B = (1 << CS01) | (1 << CS00); // Prescaler 64
+
+	// Botón Inicio (PB5)
+	DDRB &= ~(1 << DDB5); PORTB |= (1 << PORTB5); // Entrada Pull-up
+	PCICR |= (1 << PCIE0); PCMSK0 |= (1 << PCINT5);
+
+	// Jugadores (PC4, PC5)
+	DDRC &= ~((1 << DDC4) | (1 << DDC5));
+	PORTC |= (1 << PORTC4) | (1 << PORTC5);
+
+	// LEDs Salida
+	DDRC |= 0x0F; // PC0-PC3
+	DDRB |= (1 << DDB1) | (1 << DDB2) | (1 << DDB3) | (1 << DDB4); // PB1-PB4
+	PORTC &= ~0x0F; PORTB &= ~0x1E; // Apagar todo
+	
+	sei();
+}
+
+void actualizar_leds_progreso() {
+	// Jugador 1, estado de leds por pulsaion de boton
+	PORTC &= ~0x0F; // Limpiar
+	if (contador_j1 >= 1) PORTC |= (1 << PC0);
+	if (contador_j1 >= 2) PORTC |= (1 << PC1);
+	if (contador_j1 >= 3) PORTC |= (1 << PC2);
+	if (contador_j1 >= 4) PORTC |= (1 << PC3);
+	
+	// Jugador 2, estado de leds por pulsacion de boton
+	PORTB &= ~0x1E; // Limpiar
+	if (contador_j2 >= 1) PORTB |= (1 << PB1);
+	if (contador_j2 >= 2) PORTB |= (1 << PB2);
+	if (contador_j2 >= 3) PORTB |= (1 << PB3);
+	if (contador_j2 >= 4) PORTB |= (1 << PB4);
+}
+
+void efecto_ganador(uint8_t ganador) {
+	PORTC &= ~0x0F; PORTB &= ~0x1E; // limpieza de leds
+	
+	// Mostrar en display el numero del ganador
+	if (ganador == 1) {
+		PORTC |= 0x0F; display_valor = 1;
+		} else {
+		PORTB |= 0x1E; display_valor = 2;
+	}
+}
+
+int main(void) {
+	setup_hardware();
+
+	while(1) {
+		display_show(display_valor);
+
+		if (estado_juego == ESTADO_CARRERA) {
+			
+			// Jugador 1
+			if (!(PINC & (1 << PINC4))) {
+				contador_j1++;
+				actualizar_leds_progreso();
+				
+				if (contador_j1 >= META) {
+					estado_juego = ESTADO_GANADOR;
+					efecto_ganador(1);
+				}
+				
+				
+				while(!(PINC & (1 << PINC4)));
+			}
+
+			// Jugador 2
+			if (!(PINC & (1 << PINC5))) {
+				contador_j2++;
+				actualizar_leds_progreso();
+
+				if (contador_j2 >= META) {
+					estado_juego = ESTADO_GANADOR;
+					efecto_ganador(2);
+				}
+				
+				while(!(PINC & (1 << PINC5)));
+			}
+		}
+	}
+}
+
+
+ISR(PCINT0_vect) {
+	// Si se presiona el botón de inicio
+	if (!(PINB & (1 << PINB5))) {
+		// Solo iniciamos si no estamos jugando 
+		if (estado_juego != ESTADO_CONTEO && estado_juego != ESTADO_CARRERA) {
+			estado_juego = ESTADO_CONTEO;
+			display_valor = 5;
+			timer_ms = 0;
+			contador_j1 = 0;
+			contador_j2 = 0;
+			PORTC &= ~0x0F;
+			PORTB &= ~0x1E;
+		}
+	}
+}
+
+ISR(TIMER0_COMPA_vect) {
+	if (estado_juego == ESTADO_CONTEO) {
+		timer_ms++;
+		if (timer_ms >= 1000) { // Cada 1 segundo
+			timer_ms = 0;
+			if (display_valor > 0) {
+				display_valor--;
+				} else {
+				estado_juego = ESTADO_CARRERA;
+				display_valor = 0; // Muestra 0 al iniciar carrera
+			}
+		}
+	}
+}
