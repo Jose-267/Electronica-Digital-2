@@ -1,0 +1,59 @@
+------------------------- DISPLAY.H ------------------------------------------
+
+/*
+ * display.h
+ * Librería para display 7 segmentos
+ */ 
+#ifndef DISPLAY_H_
+#define DISPLAY_H_
+
+#include <avr/io.h>
+
+void display_init(void);
+void display_show(uint8_t numero);
+void display_off(void);
+
+#endif /* DISPLAY_H_ */
+
+
+------------------------- DISPLAY.C ------------------------------------------
+
+#include "display.h"
+
+// Tabla de números 0-9
+const uint8_t tabla_numeros[] = {
+	0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x67
+};
+
+void display_init(void) {
+	// Configurar PD2-PD7 como salida
+	DDRD |= 0xFC;
+	
+	// Configurar PB0 como salida
+	DDRB |= (1 << DDB0);
+}
+
+void display_show(uint8_t numero) {
+	if (numero > 9) return;
+	
+	uint8_t segmentos = tabla_numeros[numero];
+	
+	// Limpiar display
+	PORTD &= ~0xFC;
+	PORTB &= ~(1 << PORTB0);
+
+	
+	// Desplazamos 2 bits a la izquierda
+	PORTD |= (segmentos & 0x3F) << 2;
+	
+	// El segmento G es el bit 6 
+	if (segmentos & 0x40) {
+		PORTB |= (1 << PORTB0);
+	}
+}
+
+void display_off(void) {
+	// limpiar display
+	PORTD &= ~0xFC;
+	PORTB &= ~(1 << PORTB0);
+}
