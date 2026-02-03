@@ -1,0 +1,26 @@
+------------------------- adc.h ----------------------------
+#ifndef ADC_H
+#define ADC_H
+#include <avr/io.h>
+
+void ADC_init(void);
+uint16_t ADC_read(uint8_t channel);
+
+#endif  
+
+----------------------- adc.c ------------------------------------
+#include "adc.h"
+
+void ADC_init(void) {
+	ADMUX = (1 << REFS0); 
+	// Prescaler 128 (16MHz/128 = 125KHz) 
+	ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+}
+
+uint16_t ADC_read(uint8_t channel) {
+	// Seleccionar canal 
+	ADMUX = (ADMUX & 0xF0) | (channel & 0x0F);
+	ADCSRA |= (1 << ADSC); // Iniciar conversión
+	while (ADCSRA & (1 << ADSC)); // Esperar a que termine
+	return ADC;
+}
