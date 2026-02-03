@@ -1,0 +1,109 @@
+-------------------------- lcd_8bit.h-------------------------------
+
+#ifndef LCD_8BIT_H
+#define LCD_8BIT_H
+
+#include <avr/io.h>
+
+void LCD_Inicializar(void);
+void LCD_Comando(unsigned char cmd);
+void LCD_Caracter(unsigned char dato);
+void LCD_Posicion(uint8_t fila, uint8_t columna);
+void LCD_Mensaje(char *texto);
+
+#endif
+
+
+-------------------------- lcd_8bit.c --------------------------------
+#include <avr/io.h>
+#include <util/delay.h>
+#include "lcd_8bit.h"
+
+// Definimos los pines
+#define RS PB3
+#define E  PB2
+
+// Obtiene los datos para la lcd
+void LCD_Ejecutar_Pulso(void) {
+	// Subir la señal
+	PORTB |= (1 << E);
+	_delay_us(5); // Espera un instante
+	
+	// Bajar la señal
+	PORTB &= ~(1 << E);
+	_delay_us(200);
+}
+
+// Sirve para: Borrar pantalla, mover cursor, configurar modo, etc.
+void LCD_Comando(unsigned char cmd) {
+	// Bajar RS a 0, envia una instruccion no un texto
+	PORTB &= ~(1 << RS);
+	
+	// Se filtra los pines 2 al 7 del Puerto D
+	PORTD &= 0x03;
+	// desplazamiento de bits
+	PORTD |= (cmd << 2);
+
+	// Se filtra los pines 0 y 1 del Puerto B
+	PORTB &= 0xFC;
+	// Desplazamiento de bits
+	PORTB |= ((cmd >> 6) & 0x03);
+
+	LCD_Ejecutar_Pulso();
+	_delay_ms(2);
+}
+
+
+void LCD_Caracter(unsigned char dato) {
+	// Subir RS a 1, ya no es una instruccion es un texto
+	PORTB |= (1 << RS);
+
+	PORTD &= 0x03;
+	PORTD |= (dato << 2);
+
+	PORTB &= 0xFC;
+	PORTB |= ((dato >> 6) & 0x03);
+
+	LCD_Ejecutar_Pulso();
+	_delay_ms(2);
+}
+
+
+void LCD_Inicializar(void) {
+	DDRD |= 0xFC; // Habilitar pines 2 al 7
+	DDRB |= 0x0F; // Habilitar pines 8 al 11
+
+	_delay_ms(50);
+
+
+	LCD_Comando(0b00111000);
+	_delay_ms(5);
+	LCD_Comando(0b00111000);
+	_delay_us(150);
+	LCD_Comando(0b00111000);
+
+	LCD_Comando(0b00111000); // Modo: 8 bits
+	LCD_Comando(0b00001100); // Pantalla encendida
+	LCD_Comando(0b00000110); // Escritura
+	LCD_Comando(0b00000001); // Borra la pantalla al iniciar
+	_delay_ms(2);
+}
+
+
+void LCD_Posicion(uint8_t fila, uint8_t columna) {
+	// Dirección base de la Fila 0
+	unsigned char direccion = 0x80;
+	
+	if (fila == 1) {
+		direccion = 0xC0; // redirecciona a la fila dos para comenzar a escribir
+	}
+	
+	LCD_Comando(direccion + columna);
+}
+
+void LCD_Mensaje(char *texto) {
+	while (*texto) {
+		LCD_Caracter(*texto); // Escribe la letra actual
+		texto++;
+	}
+}
