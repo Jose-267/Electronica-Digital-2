@@ -1,0 +1,86 @@
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <util/delay.h>
+#include <stdio.h>
+#include <avr/eeprom.h>
+
+#include "adc.h"
+#include "lcd_8bit.h"
+#include "uart.h"
+
+#define DIRECCION_MEMORIA 0
+
+int main(void) {
+	uint16_t lectura_s1, lectura_s2;
+	uint32_t mv_s1;
+	
+	uint8_t contador_s3 = 0;
+	
+	char buffer_lcd[20];
+	char buffer_pc[40];
+	char recibido;
+
+	// inicializacion de funciones
+	ADC_init();
+	LCD_Inicializar();
+	initUART();
+	
+	// Recuperar S3 de la memoria
+	contador_s3 = eeprom_read_byte((uint8_t*)DIRECCION_MEMORIA);
+	if(contador_s3 == 0xFF) contador_s3 = 0; // Borrar la memoria
+
+	_delay_ms(100);
+
+	// Interfaz del LCD
+	LCD_Posicion(0, 0);
+	LCD_Mensaje("S1:   S2:   S3: ");
+
+	while (1) {
+		// Contador S3
+		if (UART_HayDato()) {
+			recibido = readChar();
+			uint8_t cambio = 0;
+			// Si se recibe un + se sumara en el contador
+			if (recibido == '+') {
+				contador_s3++;
+				cambio = 1;
+			}
+			else if (recibido == '-') {
+				contador_s3--; // Si se recibe un - se resta del contador
+				cambio = 1;
+			}
+			// Si se registra un cambio en el valor de entrada se cambia por el actualizado
+			if (cambio) {
+				eeprom_write_byte((uint8_t*)DIRECCION_MEMORIA, contador_s3);
+			}
+		}
+
+		lectura_s1 = ADC_read(7); // Pines de los potenciometros
+		lectura_s2 = ADC_read(6);
+		
+		// Solo convertimos S1 a voltaje
+		mv_s1 = ((uint32_t)lectura_s1 * 5000UL) / 1023UL; // Regla de tres para obtener un valor entre 0 y 5
+		
+
+		// S1: %d.%02dV  S1 0 a 5 V
+		// S2: %4d       S2 0 a 1023
+		// S3: %02d      S3 contador
+		sprintf(buffer_lcd, "%d.%02dV %4d  %02d   ",
+		(int)(mv_s1 / 1000), (int)((mv_s1 % 1000) / 10), // S1
+		lectura_s2,                                      // S2
+		contador_s3                                      // S3
+		);
+		
+		LCD_Posicion(1, 0); // colocamor el cursor en la linea inferior para escribir los datos
+		LCD_Mensaje(buffer_lcd); // Se muestra el mensaje
+
+		sprintf(buffer_pc, "S1: %d.%02dV | S2: %d | S3: %d\r\n", // Parecido al LCD pero lo enviamos a la terminal en nuestra computadora
+		(int)(mv_s1 / 1000), (int)((mv_s1 % 1000) / 10),
+		lectura_s2,
+		contador_s3
+		);
+		writeString(buffer_pc); // encio de la informacion
+
+		_delay_ms(200);
+	}
+}
