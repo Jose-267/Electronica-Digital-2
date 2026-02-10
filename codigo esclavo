@@ -1,0 +1,71 @@
+-----------------------main esclavo-------------------------------
+#define F_CPU 16000000
+#include <avr/io.h>
+#include <util/delay.h>
+#include <avr/interrupt.h>
+#include "SPI.h"
+#include "ADC1.h"
+
+volatile uint8_t valor_adc = 0;  // Potenciometro 1
+volatile uint8_t valor_adc1 = 0; // Potenciometro 2
+
+void setup(){
+    cli();
+    
+    // Configurar pines analógicos como entradas
+    DDRC &= ~((1 << DDC0) | (1 << DDC1)); 
+    PORTC &= ~((1 << PORTC0) | (1 << PORTC1)); // Sin pull-ups
+    
+    // LEDs en Puerto D como salida
+    DDRD = 0xFF; 
+    
+    sei();
+}
+
+int main(void)
+{
+    setup();
+    
+    // Inicializar SPI Esclavo
+    spiInit(SPI_SLAVE_SS, SPI_DATA_ORDER_MSB, SPI_CLOCK_IDLE_LOW, SPI_CLOCK_FIRST_EDGE);
+    SPCR |= (1<<SPIE); // Habilitar interrupción SPI
+    initADC(); 
+    
+    while (1) 
+    {
+		_delay_ms(100);        
+    }
+}
+
+ISR(ADC_vect){
+    
+    if(canal == 0){
+        valor_adc = ADCH;   
+        canal = 1;         
+    }
+    else {
+        valor_adc1 = ADCH; 
+        canal = 0;         
+    }
+    
+    initADC(); 
+}
+
+ISR(SPI_STC_vect){
+    uint8_t recibido = SPDR;
+    if (recibido == 'c')
+    {
+	    SPDR = valor_adc; // Entregar Pot 1
+    }
+    else if (recibido == 'd')
+    {
+	    SPDR = valor_adc1; // Entregar Pot 2
+    }
+    
+    else
+    {
+	    PORTD = recibido;
+	    SPDR = 0x00; // No enviamos nada útil de vuelta
+    }
+    
+}
