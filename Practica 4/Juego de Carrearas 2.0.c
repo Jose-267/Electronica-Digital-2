@@ -117,6 +117,11 @@ int main(void)
 			HAL_GPIO_WritePin(LEDA2_GPIO_Port, LEDA2_Pin, GPIO_PIN_SET);
 			HAL_GPIO_WritePin(LEDA3_GPIO_Port, LEDA3_Pin, GPIO_PIN_SET);
 
+			HAL_GPIO_WritePin(LEDB0_GPIO_Port, LEDB0_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(LEDB1_GPIO_Port, LEDB1_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(LEDB2_GPIO_Port, LEDB2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(LEDB3_GPIO_Port, LEDB3_Pin, GPIO_PIN_RESET);
+
 	  } else if (ganador == 2){
 			HAL_GPIO_WritePin(A_GPIO_Port, A_Pin, GPIO_PIN_SET);
 			HAL_GPIO_WritePin(B_GPIO_Port, B_Pin, GPIO_PIN_SET);
@@ -130,6 +135,10 @@ int main(void)
 			HAL_GPIO_WritePin(LEDB1_GPIO_Port, LEDB1_Pin, GPIO_PIN_SET);
 			HAL_GPIO_WritePin(LEDB2_GPIO_Port, LEDB2_Pin, GPIO_PIN_SET);
 			HAL_GPIO_WritePin(LEDB3_GPIO_Port, LEDB3_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(LEDA0_GPIO_Port, LEDA0_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(LEDA1_GPIO_Port, LEDA1_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(LEDA2_GPIO_Port, LEDA2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(LEDA3_GPIO_Port, LEDA3_Pin, GPIO_PIN_RESET);
 
 	  } else if (ganador == 3){
 
