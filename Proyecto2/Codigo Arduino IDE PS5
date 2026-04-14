@@ -1,0 +1,59 @@
+#include <ps5Controller.h>
+
+bool estadoIzq = false;
+bool estadoDer = false;
+bool estadoDis = false;
+
+#define UMBRAL_IZQ  -30
+#define UMBRAL_DER   30
+
+// Protocolo de un byte
+#define CMD_IZQ      0x01
+#define CMD_IZQ_OFF  0x02
+#define CMD_DER      0x03
+#define CMD_DER_OFF  0x04
+#define CMD_DIS      0x05
+#define CMD_DIS_OFF  0x06
+
+void setup() {
+  Serial.begin(9600);
+  ps5.begin("d0:bc:c1:2b:1e:c7");
+}
+
+void loop() {
+  if (!ps5.isConnected()) {
+    delay(100);
+    return;
+  }
+
+  int joyX = ps5.LStickX();
+  bool izq = (joyX < UMBRAL_IZQ);
+  bool der = (joyX > UMBRAL_DER);
+bool dis = ps5.Cross() || ps5.R2Value() > 10;
+
+  if (izq && !estadoIzq) {
+    estadoIzq = true;
+    Serial.write(CMD_IZQ);
+  } else if (!izq && estadoIzq) {
+    estadoIzq = false;
+    Serial.write(CMD_IZQ_OFF);
+  }
+
+  if (der && !estadoDer) {
+    estadoDer = true;
+    Serial.write(CMD_DER);
+  } else if (!der && estadoDer) {
+    estadoDer = false;
+    Serial.write(CMD_DER_OFF);
+  }
+
+  if (dis && !estadoDis) {
+    estadoDis = true;
+    Serial.write(CMD_DIS);
+  } else if (!dis && estadoDis) {
+    estadoDis = false;
+    Serial.write(CMD_DIS_OFF);
+  }
+
+  delay(20);
+}
