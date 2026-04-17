@@ -21,8 +21,7 @@ bool estadoSel = false;
 void setup() {
   Serial.begin(9600);
   // Control negro ps5.begin("d0:bc:c1:2b:1e:c7");
-  // Control blanco 
-  ps5.begin("4c:b9:9b:de:f9:3b");
+  // Control blanco ps5.begin("4c:b9:9b:de:f9:3b");
   
 }
 
