@@ -1,0 +1,102 @@
+/* USER CODE BEGIN PD */
+
+#define CMD_IZQ      0x01
+#define CMD_IZQ_OFF  0x02
+#define CMD_DER      0x03
+#define CMD_DER_OFF  0x04
+#define CMD_DIS      0x05
+#define CMD_DIS_OFF  0x06
+#define CMD_SEL		 0x07
+#define CMD_SEL_OFF  0x08
+
+/* USER CODE END PD */
+
+---------------------------------------------------------
+/* USER CODE BEGIN PV */
+
+
+uint8_t rxByte1;
+
+
+uint8_t rxByte2;
+
+volatile uint8_t nave1_izq = 0;
+volatile uint8_t nave1_der = 0;
+volatile uint8_t nave1_dis = 0;
+volatile uint8_t nave1_sel = 0;
+
+
+volatile uint8_t nave2_izq = 0;
+volatile uint8_t nave2_der = 0;
+volatile uint8_t nave2_dis = 0;
+volatile uint8_t nave2_sel = 0;
+
+
+/* USER CODE END PV */
+
+--------------------------------------------------------------
+ /* USER CODE BEGIN 2 */
+
+  HAL_UART_Receive_IT(&huart1, &rxByte1, 1);
+  HAL_UART_Receive_IT(&huart6, &rxByte2, 1);
+
+
+
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+	    if (nave1_izq) { /* mover nave 1 izquierda */ }
+	    if (nave1_der) { /* mover nave 1 derecha  */ }
+	    if (nave1_dis) { /* nave 1 dispara        */ }
+	    if (nave1_sel) { /* nave 1 dispara        */ }
+
+
+	    if (nave2_izq) { /* mover nave 2 izquierda */ }
+	    if (nave2_der) { /* mover nave 2 derecha   */ }
+	    if (nave2_dis) { /* nave 2 dispara         */ }
+	    if (nave2_sel) { /* nave 2 dispara         */ }
+
+	    HAL_Delay(20);  // ~50 Hz
+
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+
+  }
+------------------------------------------------------------------------------
+
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+
+  if (huart->Instance == USART1) {
+    switch (rxByte1) {
+      case CMD_IZQ:     nave1_izq = 1; break;
+      case CMD_IZQ_OFF: nave1_izq = 0; break;
+      case CMD_DER:     nave1_der = 1; break;
+      case CMD_DER_OFF: nave1_der = 0; break;
+      case CMD_DIS:     nave1_dis = 1; break;
+      case CMD_DIS_OFF: nave1_dis = 0; break;
+      case CMD_SEL:     nave1_sel = 1; break;
+      case CMD_SEL_OFF: nave1_sel = 0; break;
+    }
+    HAL_UART_Receive_IT(&huart1, &rxByte1, 1);
+  }
+
+  if (huart->Instance == USART6) {
+    switch (rxByte2) {
+      case CMD_IZQ:     nave2_izq = 1; break;
+      case CMD_IZQ_OFF: nave2_izq = 0; break;
+      case CMD_DER:     nave2_der = 1; break;
+      case CMD_DER_OFF: nave2_der = 0; break;
+      case CMD_DIS:     nave2_dis = 1; break;
+      case CMD_DIS_OFF: nave2_dis = 0; break;
+      case CMD_SEL:     nave2_sel = 1; break;
+      case CMD_SEL_OFF: nave2_sel = 0; break;
+    }
+    HAL_UART_Receive_IT(&huart6, &rxByte2, 1);
+  }
+}
