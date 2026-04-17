@@ -3,6 +3,7 @@
 bool estadoIzq = false;
 bool estadoDer = false;
 bool estadoDis = false;
+bool estadoSel = false;
 
 #define UMBRAL_IZQ  -30
 #define UMBRAL_DER   30
@@ -14,10 +15,15 @@ bool estadoDis = false;
 #define CMD_DER_OFF  0x04
 #define CMD_DIS      0x05
 #define CMD_DIS_OFF  0x06
+#define CMD_SEL      0x07
+#define CMD_SEL_OFF  0x08
 
 void setup() {
   Serial.begin(9600);
-  ps5.begin("d0:bc:c1:2b:1e:c7");
+  // Control negro ps5.begin("d0:bc:c1:2b:1e:c7");
+  // Control blanco 
+  ps5.begin("4c:b9:9b:de:f9:3b");
+  
 }
 
 void loop() {
@@ -29,7 +35,8 @@ void loop() {
   int joyX = ps5.LStickX();
   bool izq = (joyX < UMBRAL_IZQ);
   bool der = (joyX > UMBRAL_DER);
-bool dis = ps5.Cross() || ps5.R2Value() > 10;
+  bool dis = ps5.R2();
+  bool sel = ps5.Cross();
 
   if (izq && !estadoIzq) {
     estadoIzq = true;
@@ -46,13 +53,19 @@ bool dis = ps5.Cross() || ps5.R2Value() > 10;
     estadoDer = false;
     Serial.write(CMD_DER_OFF);
   }
-
   if (dis && !estadoDis) {
     estadoDis = true;
     Serial.write(CMD_DIS);
   } else if (!dis && estadoDis) {
     estadoDis = false;
     Serial.write(CMD_DIS_OFF);
+  }
+  if (sel && !estadoSel) {
+    estadoSel = true;
+    Serial.write(CMD_SEL);
+  } else if (!sel && estadoSel) {
+    estadoSel = false;
+    Serial.write(CMD_SEL_OFF);
   }
 
   delay(20);
