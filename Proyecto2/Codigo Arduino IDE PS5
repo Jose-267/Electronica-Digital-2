@@ -1,636 +1,104 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
-#include "main.h"
+#include <ps5Controller.h>
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-#include "stdio.h"
-#include <string.h>
-// Audio del menú principal — se reproduce en loop
-#include "GalagaTheme.h"
+// Estado anterior de cada botón — para detectar cuando cambia
+bool estadoIzq = false;
+bool estadoDer = false;
+bool estadoArr = false;
+bool estadoAbj = false;
+bool estadoDis = false;
+bool estadoSel = false;
 
-// Audio de inicio del escenario
-#include "Stage1.h"
+// Zona muerta del joystick — valores dentro de este rango se ignoran
+#define UMBRAL_IZQ  -30
+#define UMBRAL_DER   30
 
-// Efectos de sonido del juego
-#include "diparo.h"    // sonido del disparo del jugador
-#include "caida.h"     // sonido cuando un alien cae
-#include "explotar.h"  // sonido de explosión
+// Comandos de un byte que se envían al STM32 por Serial
+#define CMD_IZQ      0x01  // joystick izquierda presionado
+#define CMD_IZQ_OFF  0x02  // joystick izquierda soltado
+#define CMD_DER      0x03  // joystick derecha presionado
+#define CMD_DER_OFF  0x04  // joystick derecha soltado
+#define CMD_DIS      0x05  // R2 presionado (disparo)
+#define CMD_DIS_OFF  0x06  // R2 soltado
+#define CMD_SEL      0x07  // Cruz presionada (seleccionar)
+#define CMD_SEL_OFF  0x08  // Cruz soltada
+#define CMD_ARR      0x09  // flecha arriba presionada
+#define CMD_ARR_OFF  0x0A  // flecha arriba soltada
+#define CMD_ABJ      0x0B  // flecha abajo presionada
+#define CMD_ABJ_OFF  0x0C  // flecha abajo soltada
 
-// Sonidos de cada tipo de alien
-#include "Alien_Rojo.h"  // alien rojo
-#include "Alien_Azul.h"  // alien azul
-#include "VerdeF1.h"     // alien verde fase 1
-#include "VerdeF2.h"     // alien verde fase 2
+void setup() {
+  Serial.begin(9600);
 
-// Otros audios del juego
-#include "StageIntro.h"  // introducción al escenario
-#include "Puntaje.h"     // pantalla de puntaje — se reproduce en loop
-
-
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-#define SND_MENU       0x01
-#define SND_JUEGO      0x02
-#define SND_DISPARO    0x03
-#define SND_EXPLOSION  0x04
-#define SND_NAVE_CAE   0x05
-#define SND_VICTORIA   0x06
-#define SND_PUNTAJE 0x07
-#define SND_ALIEN_ROJO 0x08
-#define SND_ALIEN_AZUL 0x09
-#define SND_VERDE_F1 0x0a
-#define SND_VERDE_F2 0x0b
-#define ESTADO_MENU    0
-#define ESTADO_JUEGO   1
-
-
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-DAC_HandleTypeDef hdac;
-DMA_HandleTypeDef hdma_dac2;
-
-TIM_HandleTypeDef htim6;
-
-UART_HandleTypeDef huart1;
-UART_HandleTypeDef huart2;
-
-/* USER CODE BEGIN PV */
-
-// Byte que llega por UART — guarda el último comando recibido
-uint8_t rxByte;
-
-// Estado actual del juego — inicia en menú
-volatile uint8_t estadoJuego = ESTADO_MENU;
-
-// Controla si la música del menú debe repetirse en loop
-volatile uint8_t musicaLoop  = 0;
-
-// Controla si la música de puntaje debe repetirse en loop
-volatile uint8_t puntajeLoop = 0;
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
-void SystemClock_Config(void);
-static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
-static void MX_USART2_UART_Init(void);
-static void MX_USART1_UART_Init(void);
-static void MX_DAC_Init(void);
-static void MX_TIM6_Init(void);
-/* USER CODE BEGIN PFP */
-void iniciarMusica(void);
-void detenerMusica(void);
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
-
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
-  SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_USART2_UART_Init();
-  MX_USART1_UART_Init();
-  MX_DAC_Init();
-  MX_TIM6_Init();
-  /* USER CODE BEGIN 2 */
-
- // Activa la recepción por interrupción — cada vez que llegue un byte
-// por USART1 se llamará automáticamente al callback HAL_UART_RxCpltCallback
-  HAL_UART_Receive_IT(&huart1, &rxByte, 1);
-
-// Arranca la música del menú en loop al encender el sistema
-  iniciarMusica();
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-
-
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-
-  }
-  /* USER CODE END 3 */
+  // Iniciar conexión Bluetooth con la MAC del control
+  ps5.begin("d0:bc:c1:2b:1e:c7");  // Control negro
+  // ps5.begin("4c:b9:9b:de:f9:3b"); // Control blanco
 }
 
-/**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-
-  /** Configure the main internal regulator output voltage
-  */
-  __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
-
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 64;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 2;
-  RCC_OscInitStruct.PLL.PLLR = 2;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
+void loop() {
+  // Si el control no está conectado, esperar
+  if (!ps5.isConnected()) {
+    delay(100);
+    return;
   }
 
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV8;
+  // Leer joystick y botones
+  int joyX = ps5.LStickX();          // valor entre -128 y 127
+  bool izq = (joyX < UMBRAL_IZQ);    // joystick a la izquierda
+  bool der = (joyX > UMBRAL_DER);    // joystick a la derecha
+  bool arr = ps5.Up();               // flecha arriba del D-Pad
+  bool abj = ps5.Down();             // flecha abajo del D-Pad
+  bool dis = ps5.R2Value() > 10;     // gatillo R2 (umbral para evitar activaciones accidentales)
+  bool sel = ps5.Cross();            // botón Cruz
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-}
+  // Solo se envía un byte cuando el estado cambia (presionado o soltado)
 
-/**
-  * @brief DAC Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_DAC_Init(void)
-{
-
-  /* USER CODE BEGIN DAC_Init 0 */
-
-  /* USER CODE END DAC_Init 0 */
-
-  DAC_ChannelConfTypeDef sConfig = {0};
-
-  /* USER CODE BEGIN DAC_Init 1 */
-
-  /* USER CODE END DAC_Init 1 */
-
-  /** DAC Initialization
-  */
-  hdac.Instance = DAC;
-  if (HAL_DAC_Init(&hdac) != HAL_OK)
-  {
-    Error_Handler();
+  if (izq && !estadoIzq) {
+    estadoIzq = true;
+    Serial.write(CMD_IZQ);
+  } else if (!izq && estadoIzq) {
+    estadoIzq = false;
+    Serial.write(CMD_IZQ_OFF);
   }
 
-  /** DAC channel OUT2 config
-  */
-  sConfig.DAC_Trigger = DAC_TRIGGER_T6_TRGO;
-  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-  if (HAL_DAC_ConfigChannel(&hdac, &sConfig, DAC_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
+  if (der && !estadoDer) {
+    estadoDer = true;
+    Serial.write(CMD_DER);
+  } else if (!der && estadoDer) {
+    estadoDer = false;
+    Serial.write(CMD_DER_OFF);
   }
-  /* USER CODE BEGIN DAC_Init 2 */
 
-  /* USER CODE END DAC_Init 2 */
-
-}
-
-/**
-  * @brief TIM6 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM6_Init(void)
-{
-
-  /* USER CODE BEGIN TIM6_Init 0 */
-
-  /* USER CODE END TIM6_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM6_Init 1 */
-
-  /* USER CODE END TIM6_Init 1 */
-  htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 1-1;
-  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 8000-1;
-  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
-  {
-    Error_Handler();
+  if (arr && !estadoArr) {
+    estadoArr = true;
+    Serial.write(CMD_ARR);
+  } else if (!arr && estadoArr) {
+    estadoArr = false;
+    Serial.write(CMD_ARR_OFF);
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
+
+  if (abj && !estadoAbj) {
+    estadoAbj = true;
+    Serial.write(CMD_ABJ);
+  } else if (!abj && estadoAbj) {
+    estadoAbj = false;
+    Serial.write(CMD_ABJ_OFF);
   }
-  /* USER CODE BEGIN TIM6_Init 2 */
 
-  /* USER CODE END TIM6_Init 2 */
-
-}
-
-/**
-  * @brief USART1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART1_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART1_Init 0 */
-
-  /* USER CODE END USART1_Init 0 */
-
-  /* USER CODE BEGIN USART1_Init 1 */
-
-  /* USER CODE END USART1_Init 1 */
-  huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
-  huart1.Init.WordLength = UART_WORDLENGTH_8B;
-  huart1.Init.StopBits = UART_STOPBITS_1;
-  huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_RX;
-  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart1) != HAL_OK)
-  {
-    Error_Handler();
+  if (dis && !estadoDis) {
+    estadoDis = true;
+    Serial.write(CMD_DIS);
+  } else if (!dis && estadoDis) {
+    estadoDis = false;
+    Serial.write(CMD_DIS_OFF);
   }
-  /* USER CODE BEGIN USART1_Init 2 */
 
-  /* USER CODE END USART1_Init 2 */
-
-}
-
-/**
-  * @brief USART2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART2_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART2_Init 0 */
-
-  /* USER CODE END USART2_Init 0 */
-
-  /* USER CODE BEGIN USART2_Init 1 */
-
-  /* USER CODE END USART2_Init 1 */
-  huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX_RX;
-  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart2) != HAL_OK)
-  {
-    Error_Handler();
+  if (sel && !estadoSel) {
+    estadoSel = true;
+    Serial.write(CMD_SEL);
+  } else if (!sel && estadoSel) {
+    estadoSel = false;
+    Serial.write(CMD_SEL_OFF);
   }
-  /* USER CODE BEGIN USART2_Init 2 */
 
-  /* USER CODE END USART2_Init 2 */
-
+  delay(20); // refresco a ~50 Hz
 }
-
-/**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA1_Stream6_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
-
-}
-
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  /* USER CODE BEGIN MX_GPIO_Init_1 */
-
-  /* USER CODE END MX_GPIO_Init_1 */
-
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN MX_GPIO_Init_2 */
-
-  /* USER CODE END MX_GPIO_Init_2 */
-}
-
-/* USER CODE BEGIN 4 */
-void iniciarMusica(void) {
-  // Detiene cualquier audio que esté sonando antes de iniciar
-  HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-
-  // Activa el loop para que la música se repita automáticamente al terminar
-  musicaLoop = 1;
-
-  // Inicia el DMA con el arreglo del GalagaTheme
-  HAL_DAC_Start_DMA(&hdac, DAC_CHANNEL_2,
-                    (uint32_t*)GalagaTheme,
-                    GALAGATHEME_SIZE,
-                    DAC_ALIGN_8B_R);
-
-  HAL_TIM_Base_Start(&htim6);
-}
-
-void detenerMusica(void) {
-  // Desactiva el loop para que el callback del DAC no reinicie el audio
-  musicaLoop = 0;
-
-  // Detiene cualquier audio que esté sonando antes de iniciar
-  HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-}
-
-// Callback que se ejecuta automáticamente cada vez que llega un byte por UART
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-  if (huart->Instance == USART1) {
-
-    // Revisa qué comando llegó y ejecuta la acción de audio correspondiente
-    switch (rxByte) {
-
-      case SND_MENU:
-        // Regresa al menú — detiene puntaje y arranca la música en loop
-        estadoJuego = ESTADO_MENU;
-        puntajeLoop = 0;
-        iniciarMusica();
-        break;
-
-      case SND_PUNTAJE:
-        // Arranca la música de puntaje en loop — solo para con SND_MENU
-        if (estadoJuego == ESTADO_JUEGO){
-          musicaLoop  = 0;
-          puntajeLoop = 1;
-          HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-          HAL_DAC_Start_DMA(&hdac, DAC_CHANNEL_2,
-                            (uint32_t*)Puntaje,
-                            PUNTAJE_SIZE,
-                            DAC_ALIGN_8B_R);
-        }
-        break;
-
-      case SND_JUEGO:
-        // Inicia la partida — detiene el menú y reproduce el audio del escenario
-        estadoJuego = ESTADO_JUEGO;
-        detenerMusica();
-        musicaLoop  = 0;
-        puntajeLoop = 0;
-        HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-        HAL_DAC_Start_DMA(&hdac, DAC_CHANNEL_2,
-                          (uint32_t*)Stage1,
-                          STAGE1_SIZE,
-                          DAC_ALIGN_8B_R);
-        break;
-
-      case SND_DISPARO:
-        // Efecto de disparo — solo suena si está en juego y no está en puntaje
-        if (estadoJuego == ESTADO_JUEGO && puntajeLoop == 0) {
-          musicaLoop  = 0;
-          puntajeLoop = 0;
-          HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-          HAL_DAC_Start_DMA(&hdac, DAC_CHANNEL_2,
-                            (uint32_t*)diparo,
-                            DIPARO_SIZE,
-                            DAC_ALIGN_8B_R);
-        }
-        break;
-
-      case SND_EXPLOSION:
-        // Efecto de explosión — suena una sola vez
-        if (estadoJuego == ESTADO_JUEGO) {
-          musicaLoop  = 0;
-          puntajeLoop = 0;
-          HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-          HAL_DAC_Start_DMA(&hdac, DAC_CHANNEL_2,
-                            (uint32_t*)explotar,
-                            EXPLOTAR_SIZE,
-                            DAC_ALIGN_8B_R);
-        }
-        break;
-
-      case SND_NAVE_CAE:
-        // Efecto de alien cayendo — suena una sola vez
-        if (estadoJuego == ESTADO_JUEGO) {
-          musicaLoop  = 0;
-          puntajeLoop = 0;
-          HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-          HAL_DAC_Start_DMA(&hdac, DAC_CHANNEL_2,
-                            (uint32_t*)caida,
-                            CAIDA_SIZE,
-                            DAC_ALIGN_8B_R);
-        }
-        break;
-
-      case SND_ALIEN_ROJO:
-        // Sonido del alien rojo — suena una sola vez
-        if (estadoJuego == ESTADO_JUEGO){
-          musicaLoop  = 0;
-          puntajeLoop = 0;
-          HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-          HAL_DAC_Start_DMA(&hdac, DAC_CHANNEL_2,
-                            (uint32_t*)Alien_Rojo,
-                            ALIEN_ROJO_SIZE,
-                            DAC_ALIGN_8B_R);
-        }
-        break;
-
-      case SND_ALIEN_AZUL:
-        // Sonido del alien azul — suena una sola vez
-        if (estadoJuego == ESTADO_JUEGO){
-          musicaLoop  = 0;
-          puntajeLoop = 0;
-          HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-          HAL_DAC_Start_DMA(&hdac, DAC_CHANNEL_2,
-                            (uint32_t*)Alien_Azul,
-                            ALIEN_AZUL_SIZE,
-                            DAC_ALIGN_8B_R);
-        }
-        break;
-
-      case SND_VERDE_F1:
-        // Sonido del alien verde fase 1 — suena una sola vez
-        if (estadoJuego == ESTADO_JUEGO){
-          musicaLoop  = 0;
-          puntajeLoop = 0;
-          HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-          HAL_DAC_Start_DMA(&hdac, DAC_CHANNEL_2,
-                            (uint32_t*)VerdeF1,
-                            VERDEF1_SIZE,
-                            DAC_ALIGN_8B_R);
-        }
-        break;
-
-      case SND_VERDE_F2:
-        // Sonido del alien verde fase 2 — suena una sola vez
-        if (estadoJuego == ESTADO_JUEGO){
-          musicaLoop  = 0;
-          puntajeLoop = 0;
-          HAL_DAC_Stop_DMA(&hdac, DAC_CHANNEL_2);
-          HAL_DAC_Start_DMA(&hdac, DAC_CHANNEL_2,
-                            (uint32_t*)VerdeF2,
-                            VERDEF2_SIZE,
-                            DAC_ALIGN_8B_R);
-        }
-        break;
-    }
-
-    // Reactiva la recepción para el siguiente byte
-    HAL_UART_Receive_IT(&huart1, &rxByte, 1);
-  }
-}
-
-// Callback que se ejecuta automáticamente cuando el DMA termina
-// de reproducir un arreglo completo de audio
-void HAL_DACEx_ConvCpltCallbackCh2(DAC_HandleTypeDef *hdac) {
-
-  if (musicaLoop == 1) {
-    // Es música del menú — reinicia desde el principio para el loop
-    HAL_DAC_Start_DMA(hdac, DAC_CHANNEL_2,
-                      (uint32_t*)GalagaTheme,
-                      GALAGATHEME_SIZE,
-                      DAC_ALIGN_8B_R);
-
-  } else if (puntajeLoop == 1) {
-    // Es música de puntaje — reinicia en loop hasta que llegue SND_MENU
-    HAL_DAC_Start_DMA(hdac, DAC_CHANNEL_2,
-                      (uint32_t*)Puntaje,
-                      PUNTAJE_SIZE,
-                      DAC_ALIGN_8B_R);
-
-  } else {
-    HAL_DAC_Stop_DMA(hdac, DAC_CHANNEL_2);
-  }
-}
-
-
-/* USER CODE END 4 */
-
-/**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
-void Error_Handler(void)
-{
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
-  /* USER CODE END Error_Handler_Debug */
-}
-#ifdef USE_FULL_ASSERT
-/**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t *file, uint32_t line)
-{
-  /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
-}
-#endif /* USE_FULL_ASSERT */
